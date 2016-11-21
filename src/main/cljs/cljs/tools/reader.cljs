@@ -227,19 +227,10 @@
   "Read in a list, including its location if the reader is an indexing reader"
   [rdr _ opts pending-forms]
   (let [[start-line start-column] (starting-line-col-info rdr)
-        the-list (read-delimited \) rdr opts pending-forms)
-        [end-line end-column] (ending-line-col-info rdr)]
-    (with-meta (if (empty? the-list)
-                 '()
-                 (apply list the-list))
-      (when start-line
-        (merge
-         (when-let [file (get-file-name rdr)]
-           {:file file})
-         {:line start-line
-          :column start-column
-          :end-line end-line
-          :end-column end-column})))))
+        the-list (read-delimited \) rdr opts pending-forms)]
+    (str "("
+         (string/join " " the-list)
+         ")")))
 
 (defn- read-vector
   "Read in a vector, including its location if the reader is an indexing reader"
@@ -247,15 +238,9 @@
   (let [[start-line start-column] (starting-line-col-info rdr)
         the-vector (read-delimited \] rdr opts pending-forms)
         [end-line end-column] (ending-line-col-info rdr)]
-    (with-meta the-vector
-      (when start-line
-        (merge
-         (when-let [file (get-file-name rdr)]
-           {:file file})
-         {:line start-line
-          :column start-column
-          :end-line end-line
-          :end-column end-column})))))
+    (str "["
+         (string/join " " the-vector)
+         "]")))
 
 (defn- duplicate-keys-error [msg coll]
   (letfn [(duplicates [seq]
@@ -270,29 +255,18 @@
 (defn- read-map
   "Read in a map, including its location if the reader is an indexing reader"
   [rdr _ opts pending-forms]
-  (let [[start-line start-column] (starting-line-col-info rdr)
-        the-map (read-delimited \} rdr opts pending-forms)
+  (let [the-map (read-delimited \} rdr opts pending-forms)
         map-count (count the-map)
         ks (take-nth 2 the-map)
-        key-set (set ks)
-        [end-line end-column] (ending-line-col-info rdr)]
+        key-set (set ks)]
     (when (odd? map-count)
       (reader-error rdr "Map literal must contain an even number of forms"))
     (when-not (= (count key-set) (count ks))
       (reader-error rdr (duplicate-keys-error
-                         "Map literal contains duplicate key" ks)))
-    (with-meta
-      (if (<= map-count (* 2 (.-HASHMAP-THRESHOLD PersistentArrayMap)))
-        (.fromArray PersistentArrayMap (to-array the-map) true true)
-        (.fromArray PersistentHashMap (to-array the-map) true))
-      (when start-line
-        (merge
-         (when-let [file (get-file-name rdr)]
-           {:file file})
-         {:line start-line
-          :column start-column
-          :end-line end-line
-          :end-column end-column})))))
+                          "Map literal contains duplicate key" ks)))
+    (str "{"
+         (string/join " " the-map)
+         "}")))
 
 (defn- read-number
   [^not-native rdr initch]
@@ -301,8 +275,7 @@
     (if (or (whitespace? ch) (macros ch) (nil? ch))
       (let [s (str sb)]
         (unread rdr ch)
-        (or (match-number s)
-            (reader-error rdr "Invalid number format [" s "]")))
+        s)
       (recur (doto sb (.append ch)) (read-char rdr)))))
 
 (defn- escape-char [sb ^not-native rdr]
@@ -353,7 +326,8 @@
   [rdr initch]
   (let [[line column] (starting-line-col-info rdr)
         token (read-token rdr initch)]
-    (when-not (nil? token)
+    (str token)
+    #_(when-not (nil? token)
       (case token
 
         ;; special symbols
@@ -429,24 +403,14 @@
 
 (defn- read-set
   [rdr _ opts pending-forms]
-  (let [[start-line start-column] (starting-line-col-info rdr)
-        ;; subtract 1 from start-column so it includes the # in the leading #{
-        start-column (if start-column (int (dec start-column)))
-        coll (read-delimited \} rdr opts pending-forms)
-        the-set (set coll)
-        [end-line end-column] (ending-line-col-info rdr)]
-      (when-not (= (count coll) (count the-set))
-        (reader-error rdr (duplicate-keys-error
-                           "Set literal contains duplicate key" coll)))
-      (with-meta the-set
-        (when start-line
-          (merge
-           (when-let [file (get-file-name rdr)]
-             {:file file})
-           {:line start-line
-            :column start-column
-            :end-line end-line
-            :end-column end-column})))))
+  (let [coll (read-delimited \} rdr opts pending-forms)
+        the-set (set coll)]
+    (when-not (= (count coll) (count the-set))
+      (reader-error rdr (duplicate-keys-error
+                          "Set literal contains duplicate key" coll)))
+    (str "#{"
+         (string/join " " the-set)
+         "}")))
 
 (defn- read-discard
   "Read and discard the first object from rdr"
@@ -557,7 +521,8 @@
           (throw (ex-info "read-cond body must be a list"
                           {:type :runtime-exception}))
           (binding [*suppress-read* (or *suppress-read* (= :preserve (:read-cond opts)))]
-            (if *suppress-read*
+            (str "#?" (when splicing "@") (read-list rdr ch opts pending-forms))
+            #_(if *suppress-read*
               (reader-conditional (read-list rdr ch opts pending-forms) splicing)
               (read-cond-delimited rdr splicing opts pending-forms))))
         (reader-error rdr "EOF while reading character")))
@@ -573,24 +538,9 @@
 
 (defn- read-fn
   [rdr _ opts pending-forms]
-  (if arg-env
-    (throw (ex-info "Nested #()s are not allowed" {:type :illegal-state})))
-  (binding [arg-env (sorted-map)]
-    (let [form (read* (doto rdr (unread \()) true nil opts pending-forms) ;; this sets bindings
-          rargs (rseq arg-env)
-          args (if rargs
-                 (let [higharg (key (first rargs))]
-                   (let [args (loop [i 1 args (transient [])]
-                                (if (> i higharg)
-                                  (persistent! args)
-                                  (recur (inc i) (conj! args (or (get arg-env i)
-                                                                 (garg i))))))
-                         args (if (arg-env -1)
-                                (conj args '& (arg-env -1))
-                                args)]
-                     args))
-                 [])]
-      (list 'fn* args form))))
+  (let [form (read* (doto rdr (unread \()) true nil opts pending-forms) ;; this sets bindings
+        ]
+    (str "#" form)))
 
 (defn- register-arg
   "Registers an argument to the arg-env"
@@ -623,7 +573,7 @@
 
        :else
        (let [n (read* rdr true nil opts pending-forms)]
-         (if-not (integer? n)
+         n #_(if-not (integer? n)
            (throw (ex-info "Arg literal must be %, %& or %integer"
                            {:type :illegal-state}))
            (register-arg n)))))))
@@ -765,8 +715,10 @@
 
 (defn- read-namespaced-map
   [rdr _ opts pending-forms]
-  (let [token (read-token rdr (read-char rdr))]
-    (if-let [ns (cond
+  (let [token (read-token rdr (read-char rdr))
+        _ (read-char rdr)]
+    (str "#:" token (read-map rdr nil opts pending-forms))
+    #_(if-let [ns (cond
                   (= token ":")
                   (ns-name *ns*)
 

@@ -12,58 +12,62 @@
 ;; common_tests.clj
 ;;==============================================================================
 
+(deftest read-nil
+  (is (= "nil" (read-string "nil"))))
+
+(deftest read-bad-tag
+  (is (= "#bbb 123" (read-string "#bbb 123"))))
+
 (deftest read-integer
-  (is (== 42 (read-string "42")))
-  (is (== +42 (read-string "+42")))
-  (is (== -42 (read-string "-42")))
-
-  (is (== 0 (read-string "0")))
-
-  (is (== 042 (read-string "042")))
-  (is (== +042 (read-string "+042")))
-  (is (== -042 (read-string "-042")))
+  (is (== "42" (read-string "42")))
+  (is (== "+42" (read-string "+42")))
+  (is (== "-42" (read-string "-42")))
+  (is (== "0" (read-string "0")))
+  (is (== "042" (read-string "042")))
+  (is (== "+042" (read-string "+042")))
+  (is (== "-042" (read-string "-042")))
 
   ;;hex
-  (is (== 0x42e (read-string "0x42e")))
-  (is (== +0x42e (read-string "+0x42e")))
-  (is (== -0x42e (read-string "-0x42e")))
+  (is (== "0x42e" (read-string "0x42e")))
+  (is (== "+0x42e" (read-string "+0x42e")))
+  (is (== "-0x42e" (read-string "-0x42e")))
 
   ;;oct
-  (is (== 511 (js/parseInt "777" 8) (read-string "0777")))
-  (is (== -511 (js/parseInt "-777" 8) (read-string "-0777")))
-  (is (== 1340 (js/parseInt "02474" 8) (read-string "02474")))
-  (is (== -1340 (js/parseInt "-02474" 8) (read-string "-02474")))
-  (is (thrown-with-msg? js/Error #"Invalid number format \[09\]"
-                        (read-string "09"))))
+  (is (== "0777" (read-string "0777")))
+  (is (== "-0777" (read-string "-0777")))
+  (is (== "02474" (read-string "02474")))
+  (is (== "-02474" (read-string "-02474")))
+  (is (== "09" (read-string "09"))))
 
 (deftest read-floating
-  (is (== 42.23 (read-string "42.23")))
-  (is (== +42.23 (read-string "+42.23")))
-  (is (== -42.23 (read-string "-42.23")))
+  (is (== "42.23" (read-string "42.23")))
+  (is (== "+42.23" (read-string "+42.23")))
+  (is (== "-42.23" (read-string "-42.23")))
 
-  (is (== 42.2e3 (read-string "42.2e3")))
-  (is (== +42.2e+3 (read-string "+42.2e+3")))
-  (is (== -42.2e-3 (read-string "-42.2e-3"))))
+  (is (== "42.2e3" (read-string "42.2e3")))
+  (is (== "+42.2e+3" (read-string "+42.2e+3")))
+  (is (== "-42.2e-3" (read-string "-42.2e-3"))))
 
 (deftest read-ratio
-  (is (== 4/2 (read-string "4/2")))
-  (is (== 4/2 (read-string "+4/2")))
-  (is (== -4/2 (read-string "-4/2"))))
+  (is (== "4/2" (read-string "4/2")))
+  (is (== "+4/2" (read-string "+4/2")))
+  (is (== "-4/2" (read-string "-4/2"))))
 
 (deftest read-symbol
-  (is (= 'foo (read-string "foo")))
-  (is (= 'foo/bar (read-string "foo/bar")))
-  (is (= '*+!-_? (read-string "*+!-_?")))
-  (is (= 'abc:def:ghi (read-string "abc:def:ghi")))
-  (is (= 'abc.def/ghi (read-string "abc.def/ghi")))
-  (is (= 'abc/def.ghi (read-string "abc/def.ghi")))
-  (is (= 'abc:def/ghi:jkl.mno (read-string "abc:def/ghi:jkl.mno")))
-  (is (instance? cljs.core/Symbol (read-string "alphabet")))
-  (is (= "foo//" (str (read-string "foo//"))))
-  (is (js/isNaN (read-string "NaN")))
-  (is (= js/Number.POSITIVE_INFINITY (read-string "Infinity")))
-  (is (= js/Number.POSITIVE_INFINITY (read-string "+Infinity")))
-  (is (= js/Number.NEGATIVE_INFINITY (read-string "-Infinity"))))
+  (are [s] (is (= s (read-string s)))
+  "foo"
+  "foo/bar"
+  "*+!-_?"
+  "abc:def:ghi"
+  "abc.def/ghi"
+  "abc/def.ghi"
+  "abc:def/ghi:jkl.mno"
+  "alphabet"
+  "foo//"
+  "NaN"
+  "Infinity"
+  "+Infinity"
+  "-Infinity"))
 
 (deftest read-specials
   (is (= 'nil nil))
@@ -92,19 +96,23 @@
   (is (= "foo\123bar" (read-string "\"foo\\123bar\""))))
 
 (deftest read-list
-  (is (= '() (read-string "()")))
-  (is (= '(foo bar) (read-string "(foo bar)")))
-  (is (= '(foo (bar) baz) (read-string "(foo (bar) baz)"))))
+  (is (= "()" (read-string "()")))
+  (is (= "(1 2 3)" (read-string "(1 2 3)")))
+  (is (= "(1 2 (3 4))" (read-string "(1 2 (3 4))")))
+  (is (= "(foo bar)" (read-string "(foo bar)")))
+  (is (= "(foo (bar) baz)" (read-string "(foo (bar) baz)"))))
 
 (deftest read-vector
-  (is (= '[] (read-string "[]")))
-  (is (= '[foo bar] (read-string "[foo bar]")))
-  (is (= '[foo [bar] baz] (read-string "[foo [bar] baz]"))))
+  (is (= "[]" (read-string "[]")))
+  (is (= "[foo bar]" (read-string "[foo bar]")))
+  (is (= "[foo bar]" (read-string "[foo        bar]")))
+  (is (= "[foo [bar] baz]" (read-string "[foo [bar] baz]"))))
 
 (deftest read-map
-  (is (= '{} (read-string "{}")))
-  (is (= '{foo bar} (read-string "{foo bar}")))
-  (is (= '{foo {bar baz}} (read-string "{foo {bar baz}}")))
+  (are [s] (is (= s (read-string s)))
+  "{}"
+  "{foo bar}"
+  "{foo {bar baz}}")
   (is (thrown-with-msg? js/Error
                         #"Map literal must contain an even number of forms"
                         (read-string "{foo bar bar}")))
@@ -112,9 +120,10 @@
                       (read-string "{foo bar foo bar}"))))
 
 (deftest read-set
-  (is (= '#{} (read-string "#{}")))
-  (is (= '#{foo bar} (read-string "#{foo bar}")))
-  (is (= '#{foo #{bar} baz} (read-string "#{foo #{bar} baz}")))
+  (are [s] (is (= s (read-string s)))
+   "#{}"
+  "#{foo bar}"
+  "#{foo #{bar} baz}")
   (is (thrown-with-msg? js/Error #"Set literal contains duplicate key: foo"
                         (read-string "#{foo foo}")))
   (is (thrown-with-msg? js/Error #"Set literal contains duplicate keys: foo, bar"
@@ -169,7 +178,10 @@
   (is (= '(var foo) (read-string "#'foo"))))
 
 (deftest read-fn
-  (is (= '(fn* [] (foo bar baz)) (read-string "#(foo bar baz)"))))
+  (is (= "#(foo bar baz)" (read-string "#(foo bar baz)")))
+  (is (= "#(+ % 2)" (read-string "#(+ % 2)")))
+  (is (= "#(+ %1 2 %&)" (read-string "#(+ %1 2 %&)")))
+  (is (= "#(+ %1 %2)" (read-string "#(+ %1 %2)"))))
 
 (defn inst [s]
   (js/Date. s))
@@ -210,17 +222,6 @@
     (is (= (bar. 1 2)
            (read-string "#cljs.tools.reader_test.bar[1 2]"))))
 
-(deftest source-logging-meta-test
-  (-> (loop [r (cljs.tools.reader.reader-types/source-logging-push-back-reader "(def test 8)\n(def test2 9)\n")
-             forms []]
-        (if-let [form (reader/read r false nil)]
-          (recur r (conj forms [(meta form) form]))
-          forms))
-      (= [[{:line 1 :column 1 :end-line 1 :end-column 13} '(def test 8)]
-          [{:line 2 :column 0 :end-line 2 :end-column 1}]
-          [{:line 2, :column 1, :end-line 2, :end-column 14} '(def test2 9)]
-          [{:line 3, :column 0, :end-line 3, :end-column 1}]])))
-
 (defrecord JSValue [v])
 
 (extend-protocol IPrintWithWriter
@@ -229,37 +230,28 @@
     (-write writer "#js")
     (print-map coll pr-writer writer opts)))
 
-(deftest reader-conditionals
+#_(deftest reader-conditionals
   (let [opts {:read-cond :allow :features #{:clj}}]
-    (are [out s opts] (= out (read-string opts s))
+    ELECT game, sum(points) as total_points FROM play GROUP BY game HAVING total_points > 10
          ;; basic read-cond
-         '[foo-form] "[#?(:foo foo-form :bar bar-form)]" {:read-cond :allow :features #{:foo}}
-         '[bar-form] "[#?(:foo foo-form :bar bar-form)]" {:read-cond :allow :features #{:bar}}
-         '[foo-form] "[#?(:foo foo-form :bar bar-form)]" {:read-cond :allow :features #{:foo :bar}}
-         '[] "[#?(:foo foo-form :bar bar-form)]" {:read-cond :allow :features #{:baz}}
-         'nil "#?(:default nil)" opts
-
-         ;; environmental features
-         "clojure" "#?(:clj \"clojure\" :cljs \"clojurescript\" :default \"default\")"  opts
-
-         ;; default features
-         "default" "#?(:cljr \"clr\" :cljs \"cljs\" :default \"default\")" opts
+         "[#?(:foo foo-form :bar bar-form)]" {:read-cond :allow :features #{:foo}}
+         "#?(:default nil)" opts
 
          ;; splicing
-         [] "[#?@(:clj [])]" opts
-         [:a] "[#?@(:clj [:a])]" opts
-         [:a :b] "[#?@(:clj [:a :b])]" opts
-         [:a :b :c] "[#?@(:clj [:a :b :c])]" opts
+         "[#?@(:clj [])]" opts
+         "[#?@(:clj [:a])]" opts
+         "[#?@(:clj [:a :b])]" opts
+         "[#?@(:clj [:a :b :c])]" opts
 
          ;; nested splicing
-         [:a :b :c :d :e] "[#?@(:clj [:a #?@(:clj [:b #?@(:clj [:c]) :d]):e])]" opts
-         '(+ 1 (+ 2 3)) "(+ #?@(:clj [1 (+ #?@(:clj [2 3]))]))" opts
-         '(+ (+ 2 3) 1) "(+ #?@(:clj [(+ #?@(:clj [2 3])) 1]))" opts
-         [:a [:b [:c] :d] :e] "[#?@(:clj [:a [#?@(:clj [:b #?@(:clj [[:c]]) :d])] :e])]" opts
+         "[#?@(:clj [:a #?@(:clj [:b #?@(:clj [:c]) :d]) :e])]" opts
+         "(+ #?@(:clj [1 (+ #?@(:clj [2 3]))]))" opts
+         "(+ #?@(:clj [(+ #?@(:clj [2 3])) 1]))" opts
+         "[#?@(:clj [:a [#?@(:clj [:b #?@(:clj [[:c]]) :d])] :e])]" opts
 
          ;; bypass unknown tagged literals
-         [1 2 3] "#?(:cljs #js [1 2 3] :clj [1 2 3])" opts
-         :clojure "#?(:foo #some.nonexistent.Record {:x 1} :clj :clojure)" opts)
+         "#?(:cljs #js [1 2 3] :clj [1 2 3])" opts
+         "#?(:foo #some.nonexistent.Record {:x 1} :clj :clojure)" opts)
 
     (are [re s opts] (is (thrown-with-msg? js/Error re (read-string opts s)))
          #"Feature should be a keyword" "#?((+ 1 2) :a)" opts
@@ -268,7 +260,7 @@
          #"cond-splice not in list" "#?@(:foo :a :else :b)" opts
          #"must be a list" "#?[:foo :a :else :b]" opts
          #"Conditional read not allowed" "#?[:clj :a :default nil]" {:read-cond :BOGUS}
-         #"Conditional read not allowed" "#?[:clj :a :default nil]" {}))
+         #"Conditional read not allowed" "#?[:clj :a :default nil]" {})
   (binding [*data-readers* {'js (fn [v] (JSValue. v) )}]
     (is (= (JSValue. [1 2 3])
            (read-string {:features #{:cljs} :read-cond :allow} "#?(:cljs #js [1 2 3] :foo #foo [1])")))))
@@ -307,11 +299,12 @@
 
 (deftest read-namespaced-map
   (binding [*ns* (create-ns 'cljs.tools.reader-test)]
-    (is (= {:foo/bar 1 :baz 2} (read-string "#:foo{:bar 1 :_/baz 2}")))
-    (is (= '{foo/bar 1 :baz 2} (read-string "#:foo{bar 1 :_/baz 2}")))
-    (is (= {::foo 1} (read-string "#::{:foo 1}")))
-    (is (= {::foo 1 :bar 2} (read-string "#::{:foo 1 :_/bar 2}")))
-    (is (= {:a/foo 1 :bar 2} (read-string "#:a{:foo 1 :_/bar 2}")))))
+    (are [s] (is (= s (read-string s)))
+    "#:foo{:bar 1 :_/baz 2}"
+    "#:foo{bar 1 :_/baz 2}"
+    "#::{:foo 1}"
+    "#::{:foo 1 :_/bar 2}"
+    "#:a{:foo 1 :_/bar 2}")))
 
 (deftest read-map-types
   (let [a (reader/read-string "{:a 1 :b 2 :c 3}")
